@@ -6,6 +6,41 @@ entries:
         - kind: changed
           description: "Updated _ExternalDNS_ image repo to ghcr.io/conduitxyz/external-dns"
         - kind: added
+          description: "Added `transportservers` resource to ClusterRole when specifying `f5-transportserver` or `f5-virtualserver` as a source."
+        - kind: fixed
+          description: "Fixed handling of non-string types in `serviceAccount.metadata.annotations` field."
+        - kind: fixed
+          description: "Fixed regression where `affinity.nodeAffinity` was being ignored."
+    apiVersion: v2
+    appVersion: 0.15.1
+    created: "2025-02-17T18:59:52.672212127Z"
+    description: ExternalDNS synchronizes exposed Kubernetes Services and Ingresses
+      with DNS providers.
+    digest: c463f04b1d6f7bbfa352f82caa65fd86fb61beac9f9c3d708168a0f42df7f43f
+    home: https://github.com/conduitxyz/external-dns/
+    icon: https://github.com/conduitxyz/external-dns/raw/master/docs/img/external-dns.png
+    keywords:
+    - kubernetes
+    - externaldns
+    - external-dns
+    - dns
+    - service
+    - ingress
+    maintainers:
+    - email: steve.hipwell@gmail.com
+      name: stevehipwell
+    name: external-dns
+    sources:
+    - https://github.com/conduitxyz/external-dns/
+    type: application
+    urls:
+    - https://github.com/conduitxyz/external-dns/releases/download/external-dns-helm-chart-1.15.2/external-dns-1.15.2.tgz
+    version: 1.15.2
+  - annotations:
+      artifacthub.io/changes: |
+        - kind: changed
+          description: "Updated _ExternalDNS_ image repo to ghcr.io/conduitxyz/external-dns"
+        - kind: added
           description: "Added ability to configure `imagePullSecrets` via helm `global` value."
         - kind: added
           description: "Added options to configure `labelFilter` and `managedRecordTypes` via dedicated helm values."
@@ -42,4 +77,4 @@ entries:
     urls:
     - https://github.com/conduitxyz/external-dns/releases/download/external-dns-helm-chart-1.15.1/external-dns-1.15.1.tgz
     version: 1.15.1
-generated: "2025-02-11T00:44:43.747618056Z"
+generated: "2025-02-17T18:59:52.672223668Z"
