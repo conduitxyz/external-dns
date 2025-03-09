@@ -55,9 +55,6 @@ var proxyEnabled *bool = boolPtr(true)
 // proxyDisabled is a pointer to a bool false showing the record should not be proxied through cloudflare
 var proxyDisabled *bool = boolPtr(false)
 
-// customHostnamesEnabled controls if custom hostnames feature is used, will self-disable if SaaS API fails to authenticate
-var customHostnamesEnabled bool = true
-
 var recordTypeProxyNotSupported = map[string]bool{
 	"LOC": true,
 	"MX":  true,
@@ -155,6 +152,7 @@ type CloudFlareProvider struct {
 	domainFilter      endpoint.DomainFilter
 	zoneIDFilter      provider.ZoneIDFilter
 	proxiedByDefault  bool
+	customHostnames   bool
 	DryRun            bool
 	DNSRecordsPerPage int
 	RegionKey         string
@@ -205,7 +203,7 @@ func getCreateDNSRecordParam(cfc cloudFlareChange) cloudflare.CreateDNSRecordPar
 }
 
 // NewCloudFlareProvider initializes a new CloudFlare DNS based Provider.
-func NewCloudFlareProvider(domainFilter endpoint.DomainFilter, zoneIDFilter provider.ZoneIDFilter, proxiedByDefault bool, dryRun bool, dnsRecordsPerPage int, regionKey string) (*CloudFlareProvider, error) {
+func NewCloudFlareProvider(domainFilter endpoint.DomainFilter, zoneIDFilter provider.ZoneIDFilter, proxiedByDefault bool, customHostnames bool, dryRun bool, dnsRecordsPerPage int, regionKey string) (*CloudFlareProvider, error) {
 	// initialize via chosen auth method and returns new API object
 	var (
 		config *cloudflare.API
@@ -233,6 +231,7 @@ func NewCloudFlareProvider(domainFilter endpoint.DomainFilter, zoneIDFilter prov
 		domainFilter:      domainFilter,
 		zoneIDFilter:      zoneIDFilter,
 		proxiedByDefault:  proxiedByDefault,
+		customHostnames:   customHostnames,
 		DryRun:            dryRun,
 		DNSRecordsPerPage: dnsRecordsPerPage,
 		RegionKey:         regionKey,
@@ -303,9 +302,13 @@ func (p *CloudFlareProvider) Records(ctx context.Context) ([]*endpoint.Endpoint,
 			return nil, err
 		}
 
-		chs, chErr := p.listCustomHostnamesWithPagination(ctx, zone.ID)
-		if chErr != nil {
-			return nil, chErr
+		chs := []cloudflare.CustomHostname{}
+		if p.customHostnames {
+			var chErr error
+			chs, chErr = p.listCustomHostnamesWithPagination(ctx, zone.ID)
+			if chErr != nil {
+				return nil, chErr
+			}
 		}
 
 		// As CloudFlare does not support "sets" of targets, but instead returns
@@ -565,9 +568,26 @@ func (p *CloudFlareProvider) newCloudFlareChange(action string, endpoint *endpoi
 		ttl = int(endpoint.RecordTTL)
 	}
 	dt := time.Now()
+
 	customHostnamePrev := ""
-	if current != nil {
-		customHostnamePrev = getEndpointCustomHostname(current)
+	newCustomHostname := cloudflare.CustomHostname{}
+	if p.customHostnames {
+		if current != nil {
+			customHostnamePrev = getEndpointCustomHostname(current)
+		}
+		newCustomHostname = cloudflare.CustomHostname{
+			Hostname:           getEndpointCustomHostname(endpoint),
+			CustomOriginServer: endpoint.DNSName,
+			SSL: &cloudflare.CustomHostnameSSL{
+				Type:                 "dv",
+				Method:               "http",
+				CertificateAuthority: "google",
+				BundleMethod:         "ubiquitous",
+				Settings: cloudflare.CustomHostnameSSLSettings{
+					MinTLSVersion: "1.0",
+				},
+			},
+		}
 	}
 	return &cloudFlareChange{
 		Action: action,
@@ -589,19 +609,7 @@ func (p *CloudFlareProvider) newCloudFlareChange(action string, endpoint *endpoi
 			CreatedOn: &dt,
 		},
 		CustomHostnamePrev: customHostnamePrev,
-		CustomHostname: cloudflare.CustomHostname{
-			Hostname:           getEndpointCustomHostname(endpoint),
-			CustomOriginServer: endpoint.DNSName,
-			SSL: &cloudflare.CustomHostnameSSL{
-				Type:                 "dv",
-				Method:               "http",
-				CertificateAuthority: "google",
-				BundleMethod:         "ubiquitous",
-				Settings: cloudflare.CustomHostnameSSLSettings{
-					MinTLSVersion: "1.0",
-				},
-			},
-		},
+		CustomHostname:     newCustomHostname,
 	}
 }
 
@@ -634,7 +642,7 @@ func (p *CloudFlareProvider) listDNSRecordsWithAutoPagination(ctx context.Contex
 
 // listCustomHostnamesWithPagination performs automatic pagination of results on requests to cloudflare.CustomHostnames
 func (p *CloudFlareProvider) listCustomHostnamesWithPagination(ctx context.Context, zoneID string) ([]cloudflare.CustomHostname, error) {
-	if !customHostnamesEnabled {
+	if !p.customHostnames {
 		return nil, nil
 	}
 	var chs []cloudflare.CustomHostname
@@ -647,11 +655,6 @@ func (p *CloudFlareProvider) listCustomHostnamesWithPagination(ctx context.Conte
 				if apiErr.ClientRateLimited() || apiErr.StatusCode >= http.StatusInternalServerError {
 					// Handle rate limit error as a soft error
 					return nil, provider.NewSoftError(err)
-				} else if apiErr.ErrorMessageContains("Authentication error") {
-					// "Cloudflare for SaaS" fails toauthenticate, log once and don't use cusotm hostnames
-					log.Debugf("\"Cloudflare for SaaS\" is not enabled, custom hostnames will not be collected.")
-					customHostnamesEnabled = false
-					return nil, nil
 				}
 			}
 			log.Errorf("zone %s failed to fetch custom hostnames. Please check if \"Cloudflare for SaaS\" is enabled and API key permissions, %v", zoneID, err)
@@ -719,7 +722,7 @@ func groupByNameAndTypeWithCustomHostnames(records []cloudflare.DNSRecord, chs [
 	// map custom origin to custom hostname, custom origin should match to a dns record
 	customOriginServers := map[string]string{}
 
-	// only one latest custom hostname for a dns record would work
+	// only one latest custom hostname for a dns record would work; noop (chs is empty) if custom hostnames feature is not in use
 	for _, c := range chs {
 		customOriginServers[c.CustomOriginServer] = c.Hostname
 	}
@@ -746,6 +749,7 @@ func groupByNameAndTypeWithCustomHostnames(records []cloudflare.DNSRecord, chs [
 			continue
 		}
 		ep = ep.WithProviderSpecific(source.CloudflareProxiedKey, strconv.FormatBool(proxied))
+		// noop (customOriginServers is empty) if custom hostnames feature is not in use
 		if customHostname, ok := customOriginServers[records[0].Name]; ok {
 			ep = ep.WithProviderSpecific(source.CloudflareCustomHostnameKey, customHostname)
 		}

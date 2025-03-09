@@ -86,6 +86,7 @@
 | `--tencent-cloud-config-file="/etc/kubernetes/tencent-cloud.json"` | When using the Tencent Cloud provider, specify the Tencent Cloud configuration file (required when --provider=tencentcloud) |
 | `--tencent-cloud-zone-type=` | When using the Tencent Cloud provider, filter for zones with visibility (optional, options: public, private) |
 | `--[no-]cloudflare-proxied` | When using the Cloudflare provider, specify if the proxy mode must be enabled (default: disabled) |
+| `--[no-]cloudflare-custom-hostnames` | When using the Cloudflare provider, specify if the Custom Hostnames feature will be used. Requires "Cloudflare for SaaS" enabled. (default: disabled) |
 | `--cloudflare-dns-records-per-page=100` | When using the Cloudflare provider, specify how many DNS records listed per page, max possible 5,000 (default: 100) |
 | `--cloudflare-region-key=CLOUDFLARE-REGION-KEY` | When using the Cloudflare provider, specify the region (default: earth) |
 | `--coredns-prefix="/skydns/"` | When using the CoreDNS provider, specify the prefix name |
