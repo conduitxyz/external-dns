@@ -110,6 +110,7 @@ type Config struct {
 	AzureActiveDirectoryAuthorityHost  string
 	AzureZonesCacheDuration            time.Duration
 	CloudflareProxied                  bool
+	CloudflareCustomHostnames          bool
 	CloudflareDNSRecordsPerPage        int
 	CloudflareRegionKey                string
 	CoreDNSPrefix                      string
@@ -515,6 +516,7 @@ func App(cfg *Config) *kingpin.Application {
 	app.Flag("tencent-cloud-zone-type", "When using the Tencent Cloud provider, filter for zones with visibility (optional, options: public, private)").Default(defaultConfig.TencentCloudZoneType).EnumVar(&cfg.TencentCloudZoneType, "", "public", "private")
 
 	app.Flag("cloudflare-proxied", "When using the Cloudflare provider, specify if the proxy mode must be enabled (default: disabled)").BoolVar(&cfg.CloudflareProxied)
+	app.Flag("cloudflare-custom-hostnames", "When using the Cloudflare provider, specify if the Custom Hostnames feature will be used. Requires \"Cloudflare for SaaS\" enabled. (default: disabled)").BoolVar(&cfg.CloudflareCustomHostnames)
 	app.Flag("cloudflare-dns-records-per-page", "When using the Cloudflare provider, specify how many DNS records listed per page, max possible 5,000 (default: 100)").Default(strconv.Itoa(defaultConfig.CloudflareDNSRecordsPerPage)).IntVar(&cfg.CloudflareDNSRecordsPerPage)
 	app.Flag("cloudflare-region-key", "When using the Cloudflare provider, specify the region (default: earth)").StringVar(&cfg.CloudflareRegionKey)
 	app.Flag("coredns-prefix", "When using the CoreDNS provider, specify the prefix name").Default(defaultConfig.CoreDNSPrefix).StringVar(&cfg.CoreDNSPrefix)
