@@ -55,6 +55,9 @@ var proxyEnabled *bool = boolPtr(true)
 // proxyDisabled is a pointer to a bool false showing the record should not be proxied through cloudflare
 var proxyDisabled *bool = boolPtr(false)
 
+// customHostnamesEnabled controls if custom hostnames feature is used, will self-disable if SaaS API fails to authenticate
+var customHostnamesEnabled bool = true
+
 var recordTypeProxyNotSupported = map[string]bool{
 	"LOC": true,
 	"MX":  true,
@@ -631,6 +634,9 @@ func (p *CloudFlareProvider) listDNSRecordsWithAutoPagination(ctx context.Contex
 
 // listCustomHostnamesWithPagination performs automatic pagination of results on requests to cloudflare.CustomHostnames
 func (p *CloudFlareProvider) listCustomHostnamesWithPagination(ctx context.Context, zoneID string) ([]cloudflare.CustomHostname, error) {
+	if !customHostnamesEnabled {
+		return nil, nil
+	}
 	var chs []cloudflare.CustomHostname
 	resultInfo := cloudflare.ResultInfo{Page: 1}
 	for {
@@ -641,6 +647,11 @@ func (p *CloudFlareProvider) listCustomHostnamesWithPagination(ctx context.Conte
 				if apiErr.ClientRateLimited() || apiErr.StatusCode >= http.StatusInternalServerError {
 					// Handle rate limit error as a soft error
 					return nil, provider.NewSoftError(err)
+				} else if apiErr.ErrorMessageContains("Authentication error") {
+					// "Cloudflare for SaaS" fails toauthenticate, log once and don't use cusotm hostnames
+					log.Debugf("\"Cloudflare for SaaS\" is not enabled, custom hostnames will not be collected.")
+					customHostnamesEnabled = false
+					return nil, nil
 				}
 			}
 			log.Errorf("zone %s failed to fetch custom hostnames. Please check if \"Cloudflare for SaaS\" is enabled and API key permissions, %v", zoneID, err)
