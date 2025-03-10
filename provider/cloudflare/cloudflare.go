@@ -64,6 +64,12 @@ var recordTypeProxyNotSupported = map[string]bool{
 	"SRV": true,
 }
 
+type CustomHostnamesConfig struct {
+	Enabled              bool
+	MinTLSVersion        string
+	CertificateAuthority string
+}
+
 var recordTypeCustomHostnameSupported = map[string]bool{
 	"A":     true,
 	"CNAME": true,
@@ -149,13 +155,13 @@ type CloudFlareProvider struct {
 	provider.BaseProvider
 	Client cloudFlareDNS
 	// only consider hosted zones managing domains ending in this suffix
-	domainFilter      endpoint.DomainFilter
-	zoneIDFilter      provider.ZoneIDFilter
-	proxiedByDefault  bool
-	customHostnames   bool
-	DryRun            bool
-	DNSRecordsPerPage int
-	RegionKey         string
+	domainFilter          endpoint.DomainFilter
+	zoneIDFilter          provider.ZoneIDFilter
+	proxiedByDefault      bool
+	CustomHostnamesConfig CustomHostnamesConfig
+	DryRun                bool
+	DNSRecordsPerPage     int
+	RegionKey             string
 }
 
 // cloudFlareChange differentiates between ChangActions
@@ -203,7 +209,7 @@ func getCreateDNSRecordParam(cfc cloudFlareChange) cloudflare.CreateDNSRecordPar
 }
 
 // NewCloudFlareProvider initializes a new CloudFlare DNS based Provider.
-func NewCloudFlareProvider(domainFilter endpoint.DomainFilter, zoneIDFilter provider.ZoneIDFilter, proxiedByDefault bool, customHostnames bool, dryRun bool, dnsRecordsPerPage int, regionKey string) (*CloudFlareProvider, error) {
+func NewCloudFlareProvider(domainFilter endpoint.DomainFilter, zoneIDFilter provider.ZoneIDFilter, proxiedByDefault bool, dryRun bool, dnsRecordsPerPage int, regionKey string, customHostnamesConfig CustomHostnamesConfig) (*CloudFlareProvider, error) {
 	// initialize via chosen auth method and returns new API object
 	var (
 		config *cloudflare.API
@@ -227,14 +233,14 @@ func NewCloudFlareProvider(domainFilter endpoint.DomainFilter, zoneIDFilter prov
 	}
 	provider := &CloudFlareProvider{
 		// Client: config,
-		Client:            zoneService{config},
-		domainFilter:      domainFilter,
-		zoneIDFilter:      zoneIDFilter,
-		proxiedByDefault:  proxiedByDefault,
-		customHostnames:   customHostnames,
-		DryRun:            dryRun,
-		DNSRecordsPerPage: dnsRecordsPerPage,
-		RegionKey:         regionKey,
+		Client:                zoneService{config},
+		domainFilter:          domainFilter,
+		zoneIDFilter:          zoneIDFilter,
+		proxiedByDefault:      proxiedByDefault,
+		CustomHostnamesConfig: customHostnamesConfig,
+		DryRun:                dryRun,
+		DNSRecordsPerPage:     dnsRecordsPerPage,
+		RegionKey:             regionKey,
 	}
 	return provider, nil
 }
@@ -302,13 +308,9 @@ func (p *CloudFlareProvider) Records(ctx context.Context) ([]*endpoint.Endpoint,
 			return nil, err
 		}
 
-		chs := []cloudflare.CustomHostname{}
-		if p.customHostnames {
-			var chErr error
-			chs, chErr = p.listCustomHostnamesWithPagination(ctx, zone.ID)
-			if chErr != nil {
-				return nil, chErr
-			}
+		chs, chErr := p.listCustomHostnamesWithPagination(ctx, zone.ID)
+		if chErr != nil {
+			return nil, chErr
 		}
 
 		// As CloudFlare does not support "sets" of targets, but instead returns
@@ -571,22 +573,14 @@ func (p *CloudFlareProvider) newCloudFlareChange(action string, endpoint *endpoi
 
 	customHostnamePrev := ""
 	newCustomHostname := cloudflare.CustomHostname{}
-	if p.customHostnames {
+	if p.CustomHostnamesConfig.Enabled {
 		if current != nil {
 			customHostnamePrev = getEndpointCustomHostname(current)
 		}
 		newCustomHostname = cloudflare.CustomHostname{
 			Hostname:           getEndpointCustomHostname(endpoint),
 			CustomOriginServer: endpoint.DNSName,
-			SSL: &cloudflare.CustomHostnameSSL{
-				Type:                 "dv",
-				Method:               "http",
-				CertificateAuthority: "google",
-				BundleMethod:         "ubiquitous",
-				Settings: cloudflare.CustomHostnameSSLSettings{
-					MinTLSVersion: "1.0",
-				},
-			},
+			SSL:                getCustomHostnamesSSLOptions(endpoint, p.CustomHostnamesConfig),
 		}
 	}
 	return &cloudFlareChange{
@@ -642,7 +636,7 @@ func (p *CloudFlareProvider) listDNSRecordsWithAutoPagination(ctx context.Contex
 
 // listCustomHostnamesWithPagination performs automatic pagination of results on requests to cloudflare.CustomHostnames
 func (p *CloudFlareProvider) listCustomHostnamesWithPagination(ctx context.Context, zoneID string) ([]cloudflare.CustomHostname, error) {
-	if !p.customHostnames {
+	if !p.CustomHostnamesConfig.Enabled {
 		return nil, nil
 	}
 	var chs []cloudflare.CustomHostname
@@ -668,6 +662,18 @@ func (p *CloudFlareProvider) listCustomHostnamesWithPagination(ctx context.Conte
 		}
 	}
 	return chs, nil
+}
+
+func getCustomHostnamesSSLOptions(endpoint *endpoint.Endpoint, customHostnamesConfig CustomHostnamesConfig) *cloudflare.CustomHostnameSSL {
+	return &cloudflare.CustomHostnameSSL{
+		Type:                 "dv",
+		Method:               "http",
+		CertificateAuthority: customHostnamesConfig.CertificateAuthority,
+		BundleMethod:         "ubiquitous",
+		Settings: cloudflare.CustomHostnameSSLSettings{
+			MinTLSVersion: customHostnamesConfig.MinTLSVersion,
+		},
+	}
 }
 
 func shouldBeProxied(endpoint *endpoint.Endpoint, proxiedByDefault bool) bool {

@@ -861,10 +861,10 @@ func TestCloudflareProvider(t *testing.T) {
 		endpoint.NewDomainFilter([]string{"bar.com"}),
 		provider.NewZoneIDFilter([]string{""}),
 		false,
-		false,
 		true,
 		5000,
-		"")
+		"",
+		CustomHostnamesConfig{Enabled: false})
 	if err != nil {
 		t.Errorf("should not fail, %s", err)
 	}
@@ -879,10 +879,10 @@ func TestCloudflareProvider(t *testing.T) {
 		endpoint.NewDomainFilter([]string{"bar.com"}),
 		provider.NewZoneIDFilter([]string{""}),
 		false,
-		false,
 		true,
 		5000,
-		"")
+		"",
+		CustomHostnamesConfig{Enabled: false})
 	if err != nil {
 		t.Errorf("should not fail, %s", err)
 	}
@@ -894,10 +894,10 @@ func TestCloudflareProvider(t *testing.T) {
 		endpoint.NewDomainFilter([]string{"bar.com"}),
 		provider.NewZoneIDFilter([]string{""}),
 		false,
-		false,
 		true,
 		5000,
-		"")
+		"",
+		CustomHostnamesConfig{Enabled: false})
 	if err != nil {
 		t.Errorf("should not fail, %s", err)
 	}
@@ -908,10 +908,10 @@ func TestCloudflareProvider(t *testing.T) {
 		endpoint.NewDomainFilter([]string{"bar.com"}),
 		provider.NewZoneIDFilter([]string{""}),
 		false,
-		false,
 		true,
 		5000,
-		"")
+		"",
+		CustomHostnamesConfig{Enabled: false})
 	if err == nil {
 		t.Errorf("expected to fail")
 	}
@@ -1530,7 +1530,14 @@ func TestCustomTTLWithEnabledProxyNotChanged(t *testing.T) {
 func TestCloudFlareProvider_Region(t *testing.T) {
 	_ = os.Setenv("CF_API_TOKEN", "abc123def")
 	_ = os.Setenv("CF_API_EMAIL", "test@test.com")
-	provider, err := NewCloudFlareProvider(endpoint.NewDomainFilter([]string{"example.com"}), provider.ZoneIDFilter{}, true, false, false, 50, "us")
+	provider, err := NewCloudFlareProvider(
+		endpoint.NewDomainFilter([]string{"example.com"}),
+		provider.ZoneIDFilter{},
+		true,
+		false,
+		50,
+		"us",
+		CustomHostnamesConfig{Enabled: false})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1561,7 +1568,14 @@ func TestCloudFlareProvider_updateDataLocalizationRegionalHostnameParams(t *test
 func TestCloudFlareProvider_newCloudFlareChange(t *testing.T) {
 	_ = os.Setenv("CF_API_KEY", "xxxxxxxxxxxxxxxxx")
 	_ = os.Setenv("CF_API_EMAIL", "test@test.com")
-	provider, err := NewCloudFlareProvider(endpoint.NewDomainFilter([]string{"example.com"}), provider.ZoneIDFilter{}, true, false, false, 50, "us")
+	provider, err := NewCloudFlareProvider(
+		endpoint.NewDomainFilter([]string{"example.com"}),
+		provider.ZoneIDFilter{},
+		true,
+		false,
+		50,
+		"us",
+		CustomHostnamesConfig{Enabled: false})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1709,8 +1723,8 @@ func TestCloudflareZoneRecordsFail(t *testing.T) {
 		customHostnames: map[string]map[string]cloudflare.CustomHostname{},
 	}
 	failingProvider := &CloudFlareProvider{
-		Client:          client,
-		customHostnames: true,
+		Client:                client,
+		CustomHostnamesConfig: CustomHostnamesConfig{Enabled: true},
 	}
 	ctx := context.Background()
 
@@ -1723,8 +1737,8 @@ func TestCloudflareZoneRecordsFail(t *testing.T) {
 func TestCloudflareDNSRecordsOperationsFail(t *testing.T) {
 	client := NewMockCloudFlareClient()
 	provider := &CloudFlareProvider{
-		Client:          client,
-		customHostnames: true,
+		Client:                client,
+		CustomHostnamesConfig: CustomHostnamesConfig{Enabled: true},
 	}
 	ctx := context.Background()
 	domainFilter := endpoint.NewDomainFilter([]string{"bar.com"})
@@ -1837,8 +1851,8 @@ func TestCloudflareDNSRecordsOperationsFail(t *testing.T) {
 func TestCloudflareCustomHostnameOperations(t *testing.T) {
 	client := NewMockCloudFlareClient()
 	provider := &CloudFlareProvider{
-		Client:          client,
-		customHostnames: true,
+		Client:                client,
+		CustomHostnamesConfig: CustomHostnamesConfig{Enabled: true},
 	}
 	ctx := context.Background()
 	domainFilter := endpoint.NewDomainFilter([]string{"bar.com"})
@@ -2179,8 +2193,8 @@ func TestCloudflareCustomHostnameOperations(t *testing.T) {
 func TestCloudflareCustomHostnameNotFoundOnRecordDeletion(t *testing.T) {
 	client := NewMockCloudFlareClient()
 	provider := &CloudFlareProvider{
-		Client:          client,
-		customHostnames: true,
+		Client:                client,
+		CustomHostnamesConfig: CustomHostnamesConfig{Enabled: true},
 	}
 	ctx := context.Background()
 	zoneID := "001"
